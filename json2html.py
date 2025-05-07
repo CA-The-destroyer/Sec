@@ -36,7 +36,7 @@ def json_to_html_with_prompt():
         )
     except Exception as e:
         print(f"❌ Error converting to HTML: {e}")
-        return
+        return  
 
     print(f"✅ Successfully wrote HTML to: {output_path}")
 
