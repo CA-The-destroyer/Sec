@@ -14,11 +14,12 @@ def run_section(verify_only, REPORT, log):
         verify_only, REPORT, log
     )
 
-    # 1.2.2.1 Ensure package repositories are reachable (avoids hanging on 'yum check-update')
+    # 1.2.2.1 Ensure updates, patches, and additional security software are installed
     _run_check_fix(
         section,
-        "Ensure package repositories are reachable",
-        "yum repolist enabled -q",
-        None,
+        "Ensure updates are installed",
+        # quick check: no pending updates
+        "yum check-update --quiet || test $? -eq 100",
+        "yum -y update",
         verify_only, REPORT, log
     )
