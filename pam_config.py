@@ -1,4 +1,4 @@
-# Updated cis_modules/pam_config.py with idempotent edits
+# Updated cis_modules/pam_config.py with idempotdent edits
 
 from cis_modules import _run_check_fix
 
