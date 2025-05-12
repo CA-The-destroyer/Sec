@@ -91,6 +91,7 @@ def main():
         "cis_modules.journald",
         "cis_modules.rsyslog",
         "cis_modules.logfiles",
+        "cis_modules.maintenance",  # newly added module
     ]
 
     selected_modules = parse_selection(modules)
@@ -110,3 +111,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

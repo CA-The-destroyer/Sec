@@ -12,6 +12,7 @@ def _is_mounted(mnt: str) -> bool:
 def run_section(verify_only, REPORT, log):
     section = "1.1 Filesystem"
 
+    # === ORIGINAL IMPLEMENTATION ===
     # 1.1.2.1.x /tmp and /dev/shm
     for mnt in ("/tmp", "/dev/shm"):
         if not _is_mounted(mnt):
@@ -62,3 +63,23 @@ def run_section(verify_only, REPORT, log):
                 f"mount -o remount,{opt} {mnt}",
                 verify_only, REPORT, log
             )
+
+    # === UPDATED IMPLEMENTATION ===
+    # Ensure /etc/fstab entries are idempotently configured
+    mounts = {
+        "/tmp":    ["nodev", "nosuid", "noexec"],
+        "/dev/shm":["nodev", "nosuid", "noexec"],
+        "/home":   ["nodev", "nosuid"],
+        "/var":    ["nodev", "nosuid"],
+    }
+    for path, opts in mounts.items():
+        opts_str = ",".join(opts)
+        # 1.1.x.y Ensure fstab line exists with correct options
+        _run_check_fix(
+            section,
+            f"Ensure /etc/fstab entry for {path} contains defaults,{opts_str}",
+            f"grep -E '^\\s*{path}\\s+.*defaults[,].*{opts[0]}' /etc/fstab",
+            f"sed -i '/^\\s*{path}\\s\\+/d' /etc/fstab && echo '{path} defaults,{opts_str} 0 0' >> /etc/fstab",
+            verify_only, REPORT, log
+        )
+
