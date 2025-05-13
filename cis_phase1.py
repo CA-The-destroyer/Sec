@@ -71,27 +71,28 @@ def main():
     log(f"[*] CIS Level 1 – {mode} started: {datetime.now()}")
 
     modules = [
-        "cis_modules.filesystem",
         "cis_modules.packages",
+        "cis_modules.filesystem",
         "cis_modules.selinux",
         "cis_modules.bootloader",
-        "cis_modules.auth_and_lockdown",
         "cis_modules.crypto_policy",
         "cis_modules.banners",
         "cis_modules.gdm",
+        "cis_modules.services",
+        "cis_modules.clients",
         "cis_modules.chrony",
+        "cis_modules.cron",
         "cis_modules.network",
         "cis_modules.firewall",
-        "cis_modules.nftables",
+        "cis_modules.sshd",
         "cis_modules.sudo",
-        "cis_modules.pam_packages",
         "cis_modules.pam_config",
         "cis_modules.shadow",
         "cis_modules.aide",
         "cis_modules.journald",
         "cis_modules.rsyslog",
         "cis_modules.logfiles",
-        "cis_modules.maintenance",  # newly added module
+        "cis_modules.maintenance",
     ]
 
     selected_modules = parse_selection(modules)
@@ -111,4 +112,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
