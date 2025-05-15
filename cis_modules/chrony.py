@@ -1,32 +1,28 @@
-# cis_modules/cron.py
+# cis_modules/chrony.py
 
 from cis_modules import _run_check_fix
 
 def run_section(verify_only, REPORT, log):
-    section = "2.4 Job Schedulers"
+    section = "2.3 Time Synchronization"
 
-    # 2.4.1.2–2.4.1.7 permissions
-    for target, mode in [
-        ("/etc/crontab",       "600"),
-        ("/etc/cron.hourly",   "700"),
-        ("/etc/cron.daily",    "700"),
-        ("/etc/cron.weekly",   "700"),
-        ("/etc/cron.monthly",  "700"),
-        ("/etc/cron.d",        "700")
-    ]:
-        _run_check_fix(
-            section,
-            f"Ensure {target} permissions are {mode} root:root",
-            f"stat -c '%a %U:%G' {target} | grep -q '^{mode} root:root$'",
-            f"chmod {mode} {target} && chown root:root {target}",
-            verify_only, REPORT, log
-        )
-
-    # 2.4.1.8 restrict to root
+    # 1) Install chrony, enable & start, remove ntp
     _run_check_fix(
         section,
-        "Ensure only root in /etc/cron.allow",
-        "grep -Ex '^root$' /etc/cron.allow && [[ $(wc -l < /etc/cron.allow) -eq 1 ]]",
-        "echo 'root' > /etc/cron.allow && chmod 600 /etc/cron.allow && chown root:root /etc/cron.allow",
+        "Ensure chrony is installed, enabled, running, and ntp is removed",
+        # Pass only if chrony present + service on + service active + ntp absent
+        "rpm -q chrony && systemctl is-enabled --quiet chronyd.service "
+        "&& systemctl is-active --quiet chronyd.service && ! rpm -q ntp",
+        # Otherwise install/start and remove
+        "dnf install -y chrony && systemctl enable --now chronyd.service && dnf remove -y ntp",
+        verify_only, REPORT, log
+    )
+
+    # 2) Ensure at least one NTP server is configured in /etc/chrony.conf
+    _run_check_fix(
+        section,
+        "Ensure chrony.conf has at least one 'server' entry",
+        "grep -E '^[[:space:]]*server[[:space:]]+' /etc/chrony.conf",
+        # No real remediation can guess a server—just insert a common public pool
+        "sed -i '/^#.*pool 2.rhel.pool.ntp.org/!a pool 2.rhel.pool.ntp.org iburst' /etc/chrony.conf && systemctl restart chronyd.service",
         verify_only, REPORT, log
     )
