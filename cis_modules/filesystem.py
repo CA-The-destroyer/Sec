@@ -1,7 +1,10 @@
+# cis_modules/filesystem.py
+
 import subprocess
 from cis_modules import _run_check_fix
 
 def _is_mounted(mnt: str) -> bool:
+    """Return True if `mnt` appears in the output of findmnt."""
     return subprocess.run(
         f"findmnt --target {mnt}", shell=True,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -10,7 +13,9 @@ def _is_mounted(mnt: str) -> bool:
 def run_section(verify_only, REPORT, log):
     section = "1.1 Filesystem"
 
-    # Original checks for separate-partition and individual mounts
+    #
+    # 1.1.2.1.x: /tmp and /dev/shm (Manual + Automated checks)
+    #
     for mnt in ("/tmp", "/dev/shm"):
         if not _is_mounted(mnt):
             REPORT.append((section, f"Ensure {mnt} is a separate partition", "Manual"))
@@ -18,51 +23,82 @@ def run_section(verify_only, REPORT, log):
         else:
             REPORT.append((section, f"Ensure {mnt} is a separate partition", "Compliant"))
             log(f"[✔] {section} - {mnt} is a separate partition")
+            # Automated: nodev, nosuid, noexec
             for opt in ("nodev", "nosuid", "noexec"):
                 _run_check_fix(
                     section,
                     f"Ensure {opt} option set on {mnt}",
-                    f"findmnt --target {mnt} | grep -q {opt}",
+                    f"findmnt --target {mnt} | grep -qw {opt}",
                     f"mount -o remount,{opt} {mnt}",
                     verify_only, REPORT, log
                 )
 
-    for mnt, opts in (("/home", ("nodev","nosuid")), ("/var", ("nodev","nosuid"))):
-        if not _is_mounted(mnt):
-            REPORT.append((section, f"Ensure {mnt} is a separate partition", "Manual"))
-            log(f"[!] {section} - {mnt} not mounted; manual partitioning required")
-        else:
-            REPORT.append((section, f"Ensure {mnt} is a separate partition", "Compliant"))
-            log(f"[✔] {section} - {mnt} is a separate partition")
-            for opt in opts:
-                _run_check_fix(
-                    section,
-                    f"Ensure {opt} option set on {mnt}",
-                    f"findmnt --target {mnt} | grep -q {opt}",
-                    f"mount -o remount,{opt} {mnt}",
-                    verify_only, REPORT, log
-                )
+    #
+    # 1.1.2.3.x: /home (Manual + Automated)
+    #
+    mnt = "/home"
+    if not _is_mounted(mnt):
+        REPORT.append((section, f"Ensure {mnt} is a separate partition", "Manual"))
+        log(f"[!] {section} - {mnt} not mounted; manual partitioning required")
+    else:
+        REPORT.append((section, f"Ensure {mnt} is a separate partition", "Compliant"))
+        log(f"[✔] {section} - {mnt} is a separate partition")
+        # Automated: nodev, nosuid
+        for opt in ("nodev", "nosuid"):
+            _run_check_fix(
+                section,
+                f"Ensure {opt} option set on {mnt}",
+                f"findmnt --target {mnt} | grep -qw {opt}",
+                f"mount -o remount,{opt} {mnt}",
+                verify_only, REPORT, log
+            )
 
-    # Aggressive enforcement of nodev/nosuid on /tmp, nodev on /home and /var
-    for path, opts in {
-        "/tmp":  ["nodev", "nosuid"],
+    #
+    # 1.1.2.4.x: /var (Manual + Automated)
+    #
+    mnt = "/var"
+    if not _is_mounted(mnt):
+        REPORT.append((section, f"Ensure {mnt} is a separate partition", "Manual"))
+        log(f"[!] {section} - {mnt} not mounted; manual partitioning required")
+    else:
+        REPORT.append((section, f"Ensure {mnt} is a separate partition", "Compliant"))
+        log(f"[✔] {section} - {mnt} is a separate partition")
+        # Automated: nodev, nosuid
+        for opt in ("nodev", "nosuid"):
+            _run_check_fix(
+                section,
+                f"Ensure {opt} option set on {mnt}",
+                f"findmnt --target {mnt} | grep -qw {opt}",
+                f"mount -o remount,{opt} {mnt}",
+                verify_only, REPORT, log
+            )
+
+    #
+    # -- Aggressive FSTAB & Remount Enforcement --
+    # Re-apply nodev/nosuid/noexec via fstab entry + remount
+    #
+    mounts = {
+        "/tmp":  ["nodev", "nosuid", "noexec"],
         "/home": ["nodev"],
         "/var":  ["nodev"]
-    }.items():
-        if not _is_mounted(path):
+    }
+
+    for mnt, opts in mounts.items():
+        if not _is_mounted(mnt):
             continue
         opts_str = ",".join(opts)
         check_cmd = (
-            f"! rpm -q && findmnt --target {path} -o OPTIONS -n | grep -q '{opts_str}'"
+            f"findmnt --target {mnt} -o OPTIONS -n | grep -qw '{opts_str}'"
         )
-        # (rpm -q is a no-op here just to force the leading "!" syntax flow)
         fix_cmd = (
-            f"sed -r -i '/\\s{path}\\s/s|defaults\\S*|defaults,{opts_str}|' /etc/fstab && "
-            f"mount -o remount,{opts_str} {path}"
+            # Insert or replace default options line in /etc/fstab
+            f"sed -r -i '/\\s{mnt}\\s/s|(defaults)(,[^ ]*)?|\\1,{opts_str}|' /etc/fstab && "
+            # Remount with the enforced options
+            f"mount -o remount,{opts_str} {mnt}"
         )
         _run_check_fix(
             section,
-            f"Ensure {opts_str} options set on {path} (aggressive enforce)",
+            f"Ensure {opts_str} options set on {mnt} (fstab & remount)",
             check_cmd,
             fix_cmd,
             verify_only, REPORT, log
