@@ -17,7 +17,7 @@ def run_section(verify_only, REPORT, log):
     _run_check_fix(
         section,
         "Ensure core dump backtraces are disabled",
-        "sysctl kernel.core_pattern | grep -vq '^\\|'",
+        "sysctl kernel.core_pattern | grep -qv '^\\|'",
         "sed -i '/^kernel.core_pattern/d' /etc/sysctl.d/99-cis.conf && "
         "echo 'kernel.core_pattern = core' >> /etc/sysctl.d/99-cis.conf && sysctl --system",
         verify_only, REPORT, log
