@@ -11,10 +11,9 @@ def run_section(verify_only, REPORT, log):
     _run_check_fix(
         section,
         "Ensure gpgcheck=1 in /etc/dnf/dnf.conf",
-        # Pass only if a line "gpgcheck=1" exists (ignoring whitespace)
         "grep -E '^\\s*gpgcheck\\s*=\\s*1' /etc/dnf/dnf.conf",
-        # Remove any existing gpgcheck lines, then append the correct one
-        "sed -i '/^\\s*gpgcheck\\s*=/d' /etc/dnf/dnf.conf && "
+        # Remove all gpgcheck lines and enforce gpgcheck=1
+        "sed -i '/^\\s*gpgcheck\\s*=\\s*/d' /etc/dnf/dnf.conf && "
         "echo 'gpgcheck=1' >> /etc/dnf/dnf.conf",
         verify_only, REPORT, log
     )
@@ -24,10 +23,10 @@ def run_section(verify_only, REPORT, log):
     #
     _run_check_fix(
         section,
-        "Ensure no pending package updates",
-        # Make the cache, then ensure "dnf check-update" returns non-zero if updates exist
+        "Ensure all packages are up to date",
+        # Check-update returns non-zero when no updates are available
         "dnf makecache -q && ! dnf check-update -q",
-        # If updates exist, install them and clean up
-        "dnf -y update --best --allowerasing && dnf clean all",
+        # Apply all updates (including security), then clean cache
+        "dnf -y upgrade --setopt=obsoletes=1 && dnf clean all",
         verify_only, REPORT, log
     )
