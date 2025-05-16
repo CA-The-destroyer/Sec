@@ -8,6 +8,18 @@ def run_section(verify_only, REPORT, log):
     section = "3 Network"
 
     #
+    # 2.2.4 Ensure telnet client is not installed
+    #
+    _run_check_fix(
+        section,
+        "Ensure telnet client is not installed",
+        "! rpm -q telnet",
+        # Aggressive uninstall of any telnet* packages
+        "dnf remove -y 'telnet*'",
+        verify_only, REPORT, log
+    )
+
+    #
     # 3.1.3 Ensure bluetooth (bluez) is not installed or running
     #
     _run_check_fix(
@@ -20,8 +32,6 @@ def run_section(verify_only, REPORT, log):
 
     #
     # 3.3 Network Kernel Parameters
-    #   - 3.3.1 Disable IP forwarding
-    #   - 3.3.8 Disable source-routed packets
     #
     sysctl_file = "/etc/sysctl.d/99-cis-network.conf"
     os.makedirs(os.path.dirname(sysctl_file), exist_ok=True)
