@@ -3,6 +3,13 @@
 # Prompts for a user to add to wheel, enables password authentication,
 # restricts SSH to wheel group, and reloads sshd.
 
+# This script is intended for use on a systemd-based Linux distribution
+# Run as root or with sudo privileges.
+# Start by copying this script to the target machine
+# Next run "dos2unix auth_prep.sh"
+# Then run "chmod +x auth_prep.sh"
+# Finally run "./auth_prep.sh"
+
 set -euo pipefail
 
 SSHD_CONFIG="/etc/ssh/sshd_config"
