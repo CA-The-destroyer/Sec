@@ -10,23 +10,25 @@ def run_section(verify_only, REPORT, log):
     #
     _run_check_fix(
         section,
-        "Ensure gpgcheck=1 in /etc/dnf/dnf.conf",
-        "grep -E '^\\s*gpgcheck\\s*=\\s*1' /etc/dnf/dnf.conf",
-        # Remove all gpgcheck lines and enforce gpgcheck=1
-        "sed -i '/^\\s*gpgcheck\\s*=\\s*/d' /etc/dnf/dnf.conf && "
+        "Ensure GPG package verification is enabled globally",
+        # Check that /etc/dnf/dnf.conf has 'gpgcheck=1'
+        "grep -Eqs '^\\s*gpgcheck\\s*=\\s*1' /etc/dnf/dnf.conf",
+        # Enable it if missing
+        "sed -i.bak -E 's/^\\s*gpgcheck\\s*=.*/gpgcheck=1/' /etc/dnf/dnf.conf || "
         "echo 'gpgcheck=1' >> /etc/dnf/dnf.conf",
         verify_only, REPORT, log
     )
 
     #
-    # 1.2.2.1 Ensure updates, patches, and additional security software are installed
+    # 1.2.2.1 Ensure updates, patches, and additional security software are installed,
+    #             but do NOT remove Citrix VDA RPMs under /opt/Citrix/VDA.
     #
     _run_check_fix(
         section,
-        "Ensure all packages are up to date",
-        # Check-update returns non-zero when no updates are available
+        "Ensure all packages are up to date (excluding Citrix VDA)",
+        # Pass if no updates are pending
         "dnf makecache -q && ! dnf check-update -q",
-        # Apply all updates (including security), then clean cache
-        "dnf -y upgrade --setopt=obsoletes=1 && dnf clean all",
+        # Upgrade everything except ctx-vda*, then clean metadata
+        "dnf -y upgrade --exclude=ctx-vda* --setopt=obsoletes=1 && dnf clean all",
         verify_only, REPORT, log
     )
