@@ -1,51 +1,66 @@
 # cis_modules/auth_and_lockdown.py
 
-import os
+import subprocess
+from pathlib import Path
 from cis_modules import _run_check_fix
 
+SYSCTL_CONF = "/etc/sysctl.d/99-cis.conf"
+
 def run_section(verify_only, REPORT, log):
-    section = "1.5 Additional Process Hardening"
-    sysctl_file = "/etc/sysctl.d/99-cis.conf"
+    section = "1.5 Configure Additional Process Hardening"
 
-    # Ensure the sysctl drop-in directory exists
-    os.makedirs(os.path.dirname(sysctl_file), exist_ok=True)
-    # Ensure the file exists so our check commands don’t fail
-    open(sysctl_file, "a").close()
+    # 1.5.1 Ensure address space layout randomization is enabled
+    _run_check_fix(
+        section,
+        "Ensure address space layout randomization (ASLR) is enabled",
+        "sysctl kernel.randomize_va_space | grep -q '= 2'",
+        "sysctl -w kernel.randomize_va_space=2",
+        verify_only, REPORT, log
+    )
 
-    # 1) ptrace_scope enforcement
+    # 1.5.2 Ensure ptrace_scope is restricted
     _run_check_fix(
         section,
         "Ensure ptrace_scope is restricted",
+        "sysctl kernel.yama.ptrace_scope | grep -q '= 1'",
         (
-            # runtime must equal “1”
-            "sysctl -n kernel.yama.ptrace_scope | grep -xq '1' && "
-            # file must contain exact line
-            f"grep -xq 'kernel.yama.ptrace_scope = 1' {sysctl_file}"
-        ),
-        (
-            # remove old lines, add correct one, reload
-            f"sed -i '/^kernel.yama.ptrace_scope/d' {sysctl_file} && "
-            f"echo 'kernel.yama.ptrace_scope = 1' >> {sysctl_file} && "
-            "sysctl --system"
+            "mkdir -p /etc/sysctl.d && "
+            "sysctl -w kernel.yama.ptrace_scope=1 && "
+            "grep -Eq '^kernel.yama.ptrace_scope' " + SYSCTL_CONF + " && "
+            "sed -i 's/^kernel.yama.ptrace_scope.*/kernel.yama.ptrace_scope = 1/' " + SYSCTL_CONF + " || "
+            "echo 'kernel.yama.ptrace_scope = 1' >> " + SYSCTL_CONF
         ),
         verify_only, REPORT, log
     )
 
-    # 2) core_pattern enforcement
+    # 1.5.3 Ensure core dump backtraces are disabled
     _run_check_fix(
         section,
         "Ensure core dump backtraces are disabled",
+        "sysctl kernel.core_pattern | grep -q '^\|/bin/false'",
         (
-            # runtime value must be exactly “core”
-            "sysctl -n kernel.core_pattern | grep -xq 'core' && "
-            # file must contain exact setting
-            f"grep -xq 'kernel.core_pattern = core' {sysctl_file}"
-        ),
-        (
-            # remove any previous core_pattern entries, add ours, reload
-            f"sed -i '/^kernel.core_pattern/d' {sysctl_file} && "
-            f"echo 'kernel.core_pattern = core' >> {sysctl_file} && "
-            "sysctl --system"
+            "mkdir -p /etc/sysctl.d && "
+            "sysctl -w kernel.core_pattern='|/bin/false' && "
+            "grep -Eq '^kernel.core_pattern' " + SYSCTL_CONF + " && "
+            "sed -i 's|^kernel.core_pattern.*|kernel.core_pattern = |/bin/false|' " + SYSCTL_CONF + " || "
+            "echo 'kernel.core_pattern = |/bin/false' >> " + SYSCTL_CONF
         ),
         verify_only, REPORT, log
     )
+
+    # 1.5.4 Ensure core dump storage is disabled
+    _run_check_fix(
+        section,
+        "Ensure core dump storage is disabled",
+        "sysctl fs.suid_dumpable | grep -q '= 0'",
+        (
+            "mkdir -p /etc/sysctl.d && "
+            "sysctl -w fs.suid_dumpable=0 && "
+            "grep -Eq '^fs.suid_dumpable' " + SYSCTL_CONF + " && "
+            "sed -i 's/^fs.suid_dumpable.*/fs.suid_dumpable = 0/' " + SYSCTL_CONF + " || "
+            "echo 'fs.suid_dumpable = 0' >> " + SYSCTL_CONF
+        ),
+        verify_only, REPORT, log
+    )
+
+    log(f"[✔] {section} completed")
