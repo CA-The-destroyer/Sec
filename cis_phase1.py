@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 cis_phase1.py
-CIS Level 1 Compliance Orchestrator with interactive module selection,
-HTML Reporting (including an “Evidence” column), and per-check evidence capture.
+CIS Level 1 Compliance Orchestrator with interactive module selection and HTML Reporting
 Usage:
   sudo python3 cis_phase1.py [--verify-only]
 """
@@ -10,8 +9,6 @@ Usage:
 import argparse
 import os
 import sys
-import shlex
-import subprocess
 from datetime import datetime
 
 # Ensure cis_modules/ is on the import path
@@ -28,60 +25,16 @@ def log(message: str):
         f.write(message + "\n")
     print(message)
 
-def _run_check_fix(section, description, check_cmd, fix_cmd,
-                   verify_only, REPORT, log):
-    """
-    Run a shell check; if it fails and verify_only is False, run the fix.
-    Append (section,description,status,evidence) to REPORT.
-    """
-    # run the check
-    proc = subprocess.run(shlex.split(check_cmd),
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE,
-                          text=True)
-    if proc.returncode == 0:
-        status = "Compliant"
-        evidence = proc.stdout.strip() or proc.stderr.strip() or check_cmd
-        log(f"[✔] {section} - {description}")
-    else:
-        if verify_only:
-            status = "Non-compliant"
-            evidence = proc.stdout.strip() or proc.stderr.strip() or check_cmd
-            log(f"[!] {section} - {description} - Non-compliant")
-        else:
-            # attempt fix
-            fix = subprocess.run(shlex.split(fix_cmd),
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE,
-                                 text=True)
-            if fix.returncode == 0:
-                status = "Fixed"
-                evidence = fix.stdout.strip() or fix.stderr.strip() or fix_cmd
-                log(f"[+] {section} - {description} - Fixed")
-            else:
-                status = f"Fix failed"
-                evidence = fix.stderr.strip() or fix.stdout.strip() or fix_cmd
-                log(f"[✗] {section} - {description} - Fix failed")
-    REPORT.append((section, description, status, evidence))
-
 def generate_report():
-    """Produce an HTML report of all checks and their statuses, including evidence."""
+    """Produce an HTML report of all checks and their statuses."""
     report_name = f"cis_phase1_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
     with open(report_name, "w") as f:
         f.write("<html><head><title>CIS Level 1 Compliance Report</title></head><body>")
         f.write("<h1>CIS Level 1 Compliance Report</h1>")
-        f.write("<table border='1'><tr>"
-                "<th>Section</th><th>Description</th><th>Status</th><th>Evidence</th></tr>")
-        for section, desc, status, evidence in REPORT:
-            color = "#ccffcc" if status in ("Compliant", "Fixed") else "#ffcccc"
-            f.write(
-                f"<tr style='background-color:{color}'>"
-                f"<td>{section}</td>"
-                f"<td>{desc}</td>"
-                f"<td>{status}</td>"
-                f"<td><pre style='margin:0'>{evidence}</pre></td>"
-                "</tr>"
-            )
+        f.write("<table border='1'><tr><th>Section</th><th>Description</th><th>Status</th></tr>")
+        for section, desc, status in REPORT:
+            color = "#ccffcc" if status in ("Compliant", "Fixed", "Success") else "#ffcccc"
+            f.write(f"<tr style='background-color:{color}'><td>{section}</td><td>{desc}</td><td>{status}</td></tr>")
         f.write("</table></body></html>")
     log(f"[✔] HTML report saved to {report_name}")
 
@@ -100,9 +53,9 @@ def parse_selection(modules):
         if '-' in part:
             start, end = part.split('-', 1)
             for i in range(int(start), int(end) + 1):
-                chosen.add(i-1)
+                chosen.add(i - 1)
         else:
-            chosen.add(int(part)-1)
+            chosen.add(int(part) - 1)
     return [modules[i] for i in sorted(chosen) if 0 <= i < len(modules)]
 
 def main():
@@ -141,9 +94,9 @@ def main():
         "cis_modules.maintenance",
     ]
 
-    selected = parse_selection(modules)
+    selected_modules = parse_selection(modules)
 
-    for mod_path in selected:
+    for mod_path in selected_modules:
         try:
             log(f"[*] Running section: {mod_path}")
             mod = __import__(mod_path, fromlist=["run_section"])
