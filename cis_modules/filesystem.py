@@ -3,48 +3,66 @@
 import subprocess
 from cis_modules import _run_check_fix
 
-def _is_mounted(mnt: str) -> bool:
-    """Return True if `mnt` is mounted according to findmnt."""
-    return subprocess.run(
-        ["findmnt", "--target", mnt],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-    ).returncode == 0
+# Helper to check if mount has option
+
+def _has_mount_option(mnt: str, opt: str) -> bool:
+    cmd = f"findmnt --target {mnt} -o OPTIONS -n | grep -qw {opt}"
+    return subprocess.run(cmd, shell=True).returncode == 0
+
+# Ensure mount and options in fstab for persistence
+
+def _ensure_fstab_option(mnt: str, opt: str, verify_only: bool, REPORT: list, log):
+    section = "1.1 Filesystem"
+    desc = f"Ensure {opt} option set on {mnt}"
+    # Check runtime
+    check_cmd = f"findmnt --target {mnt} | grep -q {opt}"
+    # Persist by updating /etc/fstab
+    fix_cmd = (
+        f"sed -i.bak -r 's|(\s{mnt}\s[^\n]*)(defaults|[^,]*)(.*)|\1\2,{opt}\3|' /etc/fstab || "
+        f"echo '$(grep -E '^{mnt}' /etc/fstab || grep -E '\s{mnt}\s' /etc/fstab)\n' >> /etc/fstab"
+    ) + f" && mount -o remount,{opt} {mnt}"
+    _run_check_fix(section, desc, check_cmd, fix_cmd, verify_only, REPORT, log)
+
 
 def run_section(verify_only, REPORT, log):
     section = "1.1 Filesystem"
 
-    # Define mounts and required options
-    mounts = {
-        "/tmp":  ["nodev", "nosuid", "noexec"],
-        "/home": ["nodev"],
-        "/var":  ["nodev"]
-    }
-
-    for mnt, opts in mounts.items():
-        # 1) Manual partition check
-        if not _is_mounted(mnt):
-            REPORT.append((section, f"Ensure {mnt} is a separate partition", "Manual"))
-            log(f"[!] {section} – {mnt} not mounted; manual partitioning required")
-            continue
-        else:
-            REPORT.append((section, f"Ensure {mnt} is a separate partition", "Compliant"))
-            log(f"[✔] {section} – {mnt} is a separate partition")
-
-        # Build the desired fstab fragment
-        opts_str = ",".join(["defaults"] + opts)
-
-        # For each option individually, but we’ll also apply them all at once
-        desc = f"Enforce {opts_str} on {mnt} via fstab & remount"
-        check_cmd = (
-            f"findmnt --target {mnt} -o OPTIONS -n | grep -qw {' '.join(opts)}"
+    # 1.1.2.1.x /tmp and /dev/shm
+    for mnt in ("/tmp", "/dev/shm"):
+        # separate partition check
+        _run_check_fix(
+            section,
+            f"Ensure {mnt} is a separate partition",
+            f"mount | grep 'on {mnt} ' | grep -q '^/dev/'",
+            None,
+            verify_only, REPORT, log
         )
-        fix_cmd = (
-            # 1a) Unmount the FS so fstab re-mount will pick up new options
-            f"umount {mnt} || true; "
-            # 1b) Edit fstab: replace any line for this mount with correct defaults+opts
-            f"sed -r -i '/\\s{mnt}\\s/ s|^([^ ]+\\s+{mnt}\\s+[^ ]+\\s+)[^ ]+|\\1{opts_str}|' /etc/fstab; "
-            # 1c) Remount with the new options
-            f"mount {mnt}"
-        )
+        # nodev, nosuid, noexec
+        for opt in ("nodev", "nosuid", "noexec"):
+            _ensure_fstab_option(mnt, opt, verify_only, REPORT, log)
 
-        _run_check_fix(section, desc, check_cmd, fix_cmd, verify_only, REPORT, log)
+    # 1.1.2.3.x /home
+    mnt = "/home"
+    _run_check_fix(
+        section,
+        f"Ensure {mnt} is a separate partition",
+        f"mount | grep 'on {mnt} ' | grep -q '^/dev/'",
+        None,
+        verify_only, REPORT, log
+    )
+    for opt in ("nodev", "nosuid"):
+        _ensure_fstab_option(mnt, opt, verify_only, REPORT, log)
+
+    # 1.1.2.4.x /var
+    mnt = "/var"
+    _run_check_fix(
+        section,
+        f"Ensure {mnt} is a separate partition",
+        f"mount | grep 'on {mnt} ' | grep -q '^/dev/'",
+        None,
+        verify_only, REPORT, log
+    )
+    for opt in ("nodev", "nosuid"):
+        _ensure_fstab_option(mnt, opt, verify_only, REPORT, log)
+
+    log(f"[✔] {section} completed")

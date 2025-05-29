@@ -2,32 +2,35 @@
 
 from cis_modules import _run_check_fix
 
-def run_section(verify_only, REPORT, log):
-    section = "5.3 PAM Packages"
 
-    # 5.3.1.1 Ensure pam is installed
+def run_section(verify_only, REPORT, log):
+    section = "5.3 Configure PAM Software Packages"
+
+    # 5.3.1.1 Ensure latest version of pam is installed
     _run_check_fix(
         section,
         "Ensure latest pam is installed",
         "rpm -q pam",
-        "yum install -y pam",
+        "dnf -y install pam",
         verify_only, REPORT, log
     )
 
-    # 5.3.1.2 Ensure authselect is installed
+    # 5.3.1.2 Ensure latest version of authselect is installed
     _run_check_fix(
         section,
-        "Ensure authselect is installed",
+        "Ensure latest authselect is installed",
         "rpm -q authselect",
-        "yum install -y authselect",
+        "dnf -y install authselect",
         verify_only, REPORT, log
     )
 
-    # 5.3.1.3 Ensure libpwquality is installed
+    # 5.3.1.3 Ensure latest version of libpwquality is installed
     _run_check_fix(
         section,
-        "Ensure libpwquality is installed",
+        "Ensure latest libpwquality is installed",
         "rpm -q libpwquality",
-        "yum install -y libpwquality",
+        "dnf -y install libpwquality",
         verify_only, REPORT, log
     )
+
+    log(f"[✔] {section} completed")

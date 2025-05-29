@@ -2,27 +2,26 @@
 
 from cis_modules import _run_check_fix
 
+
 def run_section(verify_only, REPORT, log):
-    section = "2.3 Time Synchronization"
+    section = "2.3 Configure Time Synchronization"
 
-    # 1) Install chrony, enable & start, remove ntp
+    # 2.3.1 Ensure time synchronization is in use (chrony)
     _run_check_fix(
         section,
-        "Ensure chrony is installed, enabled, running, and ntp is removed",
-        # Pass only if chrony present + service on + service active + ntp absent
-        "rpm -q chrony && systemctl is-enabled --quiet chronyd.service "
-        "&& systemctl is-active --quiet chronyd.service && ! rpm -q ntp",
-        # Otherwise install/start and remove
-        "dnf install -y chrony && systemctl enable --now chronyd.service && dnf remove -y ntp",
+        "Ensure chrony is installed",
+        "rpm -q chrony",
+        "dnf -y install chrony",
         verify_only, REPORT, log
     )
 
-    # 2) Ensure at least one NTP server is configured in /etc/chrony.conf
+    # 2.3.2 Ensure chrony service is enabled and active
     _run_check_fix(
         section,
-        "Ensure chrony.conf has at least one 'server' entry",
-        "grep -E '^[[:space:]]*server[[:space:]]+' /etc/chrony.conf",
-        # No real remediation can guess a server—just insert a common public pool
-        "sed -i '/^#.*pool 2.rhel.pool.ntp.org/!a pool 2.rhel.pool.ntp.org iburst' /etc/chrony.conf && systemctl restart chronyd.service",
+        "Ensure chrony service is enabled and running",
+        "systemctl is-enabled chronyd && systemctl is-active chronyd",
+        "systemctl enable chronyd && systemctl start chronyd",
         verify_only, REPORT, log
     )
+
+    log(f"[✔] {section} completed")

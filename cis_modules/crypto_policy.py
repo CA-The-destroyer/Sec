@@ -2,57 +2,65 @@
 
 from cis_modules import _run_check_fix
 
+
 def run_section(verify_only, REPORT, log):
-    section = "1.6 Crypto Policy"
+    section = "1.6 Configure system-wide crypto policy"
 
-    #
-    # 1.6.3 Ensure system-wide crypto policy disables SHA1 in TLS back-ends
-    #
-    # We target only OpenSSL and GnuTLS policy files, not openssh.config.
-    tls_files = "/etc/crypto-policies/back-ends/openssl.config " \
-                "/etc/crypto-policies/back-ends/gnutls.config"
-    check_sha1 = f"! grep -Riq 'sha1' {tls_files}"
-    fix_sha1 = (
-        f"grep -Rl 'sha1' {tls_files} | xargs -r sed -i '/sha1/Id' && "
-        "update-crypto-policies --reload"
-    )
+    # 1.6.1 Ensure system wide crypto policy is not set to legacy
     _run_check_fix(
         section,
-        "Ensure system-wide crypto policy disables SHA1 in TLS back-ends",
-        check_sha1,
-        fix_sha1,
+        "Ensure crypto policy is not set to LEGACY",
+        "update-crypto-policies --show | grep -qv 'LEGACY'",
+        "update-crypto-policies --set DEFAULT",
         verify_only, REPORT, log
     )
 
-    #
-    # 1.6.5 Ensure system-wide crypto policy disables AES-CBC ciphers for SSH
-    #
+    # 1.6.3 Ensure system wide crypto policy disables sha1 hash and signature support
     _run_check_fix(
         section,
-        "Ensure system-wide crypto policy disables AES-CBC for SSH",
-        "grep -q 'Ciphers.*-aes128-cbc' /etc/crypto-policies/back-ends/openssh.config",
-        "echo 'Ciphers -aes128-cbc' >> /etc/crypto-policies/back-ends/openssh.config && update-crypto-policies --reload",
+        "Ensure SHA1 is disabled in crypto policy",
+        "grep -q 'sha1' /etc/crypto-policies/back-ends/opensshserver.config",
+        (
+            "update-crypto-policies --set DEFAULT:!SHA1 && "
+            "update-crypto-policies --reload"
+        ),
         verify_only, REPORT, log
     )
 
-    #
-    # 1.6.6 Ensure system-wide crypto policy disables chacha20-poly1305@openssh.com for SSH
-    #
+    # 1.6.5 Ensure system wide crypto policy disables CBC for SSH
     _run_check_fix(
         section,
-        "Ensure system-wide crypto policy disables chacha20-poly1305 for SSH",
-        "grep -q 'Ciphers.*-chacha20-poly1305@openssh.com' /etc/crypto-policies/back-ends/openssh.config",
-        "echo 'Ciphers -chacha20-poly1305@openssh.com' >> /etc/crypto-policies/back-ends/openssh.config && update-crypto-policies --reload",
+        "Ensure CBC ciphers are disabled for SSH",
+        "grep -q 'Ciphers.*cbc' /etc/crypto-policies/back-ends/opensshserver.config",
+        (
+            "update-crypto-policies --set DEFAULT:!CBC && "
+            "update-crypto-policies --reload"
+        ),
         verify_only, REPORT, log
     )
 
-    #
-    # 1.6.7 Ensure system-wide crypto policy disables EtM (encrypt-then-MAC) for SSH
-    #
+    # 1.6.6 Ensure system wide crypto policy disables chacha20-poly1305 for SSH
     _run_check_fix(
         section,
-        "Ensure system-wide crypto policy disables EtM for SSH",
-        "grep -q 'MACs.*-hmac-etm' /etc/crypto-policies/back-ends/openssh.config",
-        "echo 'MACs -hmac-etm' >> /etc/crypto-policies/back-ends/openssh.config && update-crypto-policies --reload",
+        "Ensure chacha20-poly1305 is disabled for SSH",
+        "grep -q 'chacha20-poly1305' /etc/crypto-policies/back-ends/opensshserver.config",
+        (
+            "update-crypto-policies --set DEFAULT:!CHACHA20-POLY1305 && "
+            "update-crypto-policies --reload"
+        ),
         verify_only, REPORT, log
     )
+
+    # 1.6.7 Ensure system wide crypto policy disables EtM for SSH
+    _run_check_fix(
+        section,
+        "Ensure EtM is disabled for SSH",
+        "grep -q 'EtM' /etc/crypto-policies/back-ends/opensshserver.config",
+        (
+            "update-crypto-policies --set DEFAULT:!EtM && "
+            "update-crypto-policies --reload"
+        ),
+        verify_only, REPORT, log
+    )
+
+    log(f"[✔] {section} completed")

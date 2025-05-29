@@ -2,32 +2,46 @@
 
 from cis_modules import _run_check_fix
 
+RSYSLOG_CONF = "/etc/rsyslog.conf"
+
+
 def run_section(verify_only, REPORT, log):
-    section = "6.2 Rsyslog"
+    section = "6.2 System Logging (rsyslog)"
 
     # 6.2.3.1 Ensure rsyslog is installed
     _run_check_fix(
         section,
-        "Ensure rsyslog is installed",
+        "Ensure rsyslog package is installed",
         "rpm -q rsyslog",
-        "yum install -y rsyslog",
+        "dnf -y install rsyslog",
         verify_only, REPORT, log
     )
 
-    # 6.2.3.5 Ensure rsyslog logs to /var/log/messages
+    # 6.2.3.3 Ensure journald is configured to send logs to rsyslog
     _run_check_fix(
         section,
-        "Ensure rsyslog logs to /var/log/messages",
-        "grep -E '^\\*\\.\\*\\s+[^#].*/var/log/messages' /etc/rsyslog.conf",
-        "sed -i '/\\*\\.\\*.*\\/var\\/log\\/messages/d' /etc/rsyslog.conf && echo '*.*   /var/log/messages' >> /etc/rsyslog.conf && systemctl restart rsyslog",
+        "Ensure journald forwards logs to rsyslog",
+        "grep -E '^ForwardToSyslog=yes' /etc/systemd/journald.conf",
+        "sed -i.bak -E 's/^#?ForwardToSyslog=.*/ForwardToSyslog=yes/' /etc/systemd/journald.conf && systemctl restart systemd-journald",
         verify_only, REPORT, log
     )
 
-    # 6.2.3.6 Ensure rsyslog sends logs to a remote log host
+    # 6.2.3.5 Ensure rsyslog logging is configured
     _run_check_fix(
         section,
-        "Ensure rsyslog sends logs to a remote log host",
-        "grep -E '^@@' /etc/rsyslog.conf",
-        "sed -i '/@@/d' /etc/rsyslog.conf && echo '*.* @@loghost.example.com:514' >> /etc/rsyslog.conf && systemctl restart rsyslog",
+        "Ensure rsyslog internal logging level is set",
+        "grep -E '^\$ActionFileDefaultTemplate' {RSYSLOG_CONF}".format(RSYSLOG_CONF=RSYSLOG_CONF),
+        "# No remediation: manual review required",
         verify_only, REPORT, log
     )
+
+    # 6.2.3.6 Ensure rsyslog is configured to send logs to a remote log host
+    _run_check_fix(
+        section,
+        "Ensure rsyslog sends logs to a remote host",
+        "grep -E '^\*.*@@' {RSYSLOG_CONF}".format(RSYSLOG_CONF=RSYSLOG_CONF),
+        "# No remediation: manual configuration required",
+        verify_only, REPORT, log
+    )
+
+    log(f"[✔] {section} completed")
