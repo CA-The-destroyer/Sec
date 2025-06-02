@@ -11,7 +11,6 @@ def _has_firewalld() -> bool:
 def run_section(verify_only, REPORT, log):
     section = "4.2 FirewallD / nftables"
 
-    # Common descriptions
     ssh_desc         = "Allow SSH (port 22)"
     loopback_desc    = "Allow loopback traffic"
     # Citrix ICA (TCP & UDP)
@@ -19,7 +18,7 @@ def run_section(verify_only, REPORT, log):
     vdi_tcp_2598     = "Allow Citrix VDI TCP 2598"
     vdi_udp_1494     = "Allow Citrix VDI UDP 1494"
     vdi_udp_2598     = "Allow Citrix VDI UDP 2598"
-    # Registration ports
+    # Registration ports (HTTP/HTTPS)
     reg_tcp_80       = "Allow Citrix Registration TCP 80"
     reg_tcp_443      = "Allow Citrix Registration TCP 443"
     # LDAP / FAS ports
@@ -31,7 +30,7 @@ def run_section(verify_only, REPORT, log):
     if _has_firewalld():
         log("[→] Using firewalld for firewall configuration")
 
-        # SSH
+        # ── SSH ──────────────────────────────────────────────────────────────────
         _run_check_fix(
             section, ssh_desc,
             "firewall-cmd --zone=public --query-service=ssh",
@@ -39,7 +38,7 @@ def run_section(verify_only, REPORT, log):
             verify_only, REPORT, log
         )
 
-        # Loopback
+        # ── Loopback ─────────────────────────────────────────────────────────────
         _run_check_fix(
             section, loopback_desc,
             "firewall-cmd --zone=trusted --query-interface=lo",
@@ -47,7 +46,7 @@ def run_section(verify_only, REPORT, log):
             verify_only, REPORT, log
         )
 
-        # Citrix ICA (TCP 1494, 2598)
+        # ── Citrix ICA (TCP 1494, 2598) ──────────────────────────────────────────
         for port in (1494, 2598):
             desc = f"Allow Citrix VDI TCP {port}"
             _run_check_fix(
@@ -56,7 +55,8 @@ def run_section(verify_only, REPORT, log):
                 f"firewall-cmd --permanent --zone=public --add-port={port}/tcp && firewall-cmd --reload",
                 verify_only, REPORT, log
             )
-        # Citrix ICA (UDP 1494, 2598)
+
+        # ── Citrix ICA (UDP 1494, 2598) ──────────────────────────────────────────
         for port in (1494, 2598):
             desc = f"Allow Citrix VDI UDP {port}"
             _run_check_fix(
@@ -66,7 +66,7 @@ def run_section(verify_only, REPORT, log):
                 verify_only, REPORT, log
             )
 
-        # Registration ports (TCP 80, 443)
+        # ── Registration (TCP 80, 443) ───────────────────────────────────────────
         for port in (80, 443):
             desc = f"Allow Citrix Registration TCP {port}"
             _run_check_fix(
@@ -76,8 +76,9 @@ def run_section(verify_only, REPORT, log):
                 verify_only, REPORT, log
             )
 
-        # LDAP / FAS ports (TCP 389, 636 and UDP 389, 636)
+        # ── LDAP / FAS (TCP/UDP 389, 636) ────────────────────────────────────────
         for port in (389, 636):
+            # TCP
             desc_tcp = f"Allow LDAP TCP {port}"
             _run_check_fix(
                 section, desc_tcp,
@@ -85,6 +86,7 @@ def run_section(verify_only, REPORT, log):
                 f"firewall-cmd --permanent --zone=public --add-port={port}/tcp && firewall-cmd --reload",
                 verify_only, REPORT, log
             )
+            # UDP
             desc_udp = f"Allow LDAP UDP {port}"
             _run_check_fix(
                 section, desc_udp,
@@ -96,7 +98,7 @@ def run_section(verify_only, REPORT, log):
     else:
         log("[→] Using nftables for firewall configuration")
 
-        # SSH (TCP 22)
+        # ── SSH ──────────────────────────────────────────────────────────────────
         _run_check_fix(
             section, ssh_desc,
             "nft list ruleset | grep -q 'tcp dport 22 accept'",
@@ -104,7 +106,7 @@ def run_section(verify_only, REPORT, log):
             verify_only, REPORT, log
         )
 
-        # Loopback
+        # ── Loopback ─────────────────────────────────────────────────────────────
         _run_check_fix(
             section, loopback_desc,
             "nft list ruleset | grep -q 'iif lo accept'",
@@ -112,7 +114,7 @@ def run_section(verify_only, REPORT, log):
             verify_only, REPORT, log
         )
 
-        # Citrix ICA (TCP 1494, 2598)
+        # ── Citrix ICA (TCP 1494, 2598) ──────────────────────────────────────────
         for port in (1494, 2598):
             desc = f"Allow Citrix VDI TCP {port}"
             _run_check_fix(
@@ -121,7 +123,8 @@ def run_section(verify_only, REPORT, log):
                 f"nft insert rule inet filter input tcp dport {port} accept || true",
                 verify_only, REPORT, log
             )
-        # Citrix ICA (UDP 1494, 2598)
+
+        # ── Citrix ICA (UDP 1494, 2598) ──────────────────────────────────────────
         for port in (1494, 2598):
             desc = f"Allow Citrix VDI UDP {port}"
             _run_check_fix(
@@ -131,7 +134,7 @@ def run_section(verify_only, REPORT, log):
                 verify_only, REPORT, log
             )
 
-        # Registration ports (TCP 80, 443)
+        # ── Registration (TCP 80, 443) ───────────────────────────────────────────
         for port in (80, 443):
             desc = f"Allow Citrix Registration TCP {port}"
             _run_check_fix(
@@ -141,8 +144,9 @@ def run_section(verify_only, REPORT, log):
                 verify_only, REPORT, log
             )
 
-        # LDAP / FAS ports (TCP 389, 636 and UDP 389, 636)
+        # ── LDAP / FAS (TCP/UDP 389, 636) ────────────────────────────────────────
         for port in (389, 636):
+            # TCP
             desc_tcp = f"Allow LDAP TCP {port}"
             _run_check_fix(
                 section, desc_tcp,
@@ -150,6 +154,7 @@ def run_section(verify_only, REPORT, log):
                 f"nft insert rule inet filter input tcp dport {port} accept || true",
                 verify_only, REPORT, log
             )
+            # UDP
             desc_udp = f"Allow LDAP UDP {port}"
             _run_check_fix(
                 section, desc_udp,
