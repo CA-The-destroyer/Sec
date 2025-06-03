@@ -1,92 +1,121 @@
 # cis_modules/auth_and_lockdown.py
 
 import subprocess
-from pathlib import Path
 from cis_modules import _run_check_fix
 
-SYSCTL_CONF = "/etc/sysctl.d/99-cis.conf"
+SSHD_CONFIG = "/etc/ssh/sshd_config"
 
+def _ensure_sshd_setting(key, value, verify_only, REPORT, log, section):
+    """
+    Ensure SSHD config directive key is set to value. If present (commented or not), replace;
+    otherwise append it. Then restart sshd.
+    """
+    check_cmd = f"grep -E '^{key}\\s+{value}' {SSHD_CONFIG}"
+    fix_cmd = (
+        f"grep -Eq '^#?\\s*{key}\\b' {SSHD_CONFIG} "
+        f"&& sed -i.bak -E 's|^#?\\s*{key}.*|{key} {value}|' {SSHD_CONFIG} "
+        f"|| echo '{key} {value}' >> {SSHD_CONFIG} && systemctl restart sshd"
+    )
+    _run_check_fix(section, f"Ensure {key} is set to {value}", check_cmd, fix_cmd, verify_only, REPORT, log)
 
 def run_section(verify_only, REPORT, log):
-    section = "1.5 Configure Additional Process Hardening"
+    section = "5.1-5.2 SSH & Lockdown"
 
-    # 1.5.1 Ensure ASLR is enabled
+    # 5.1.20 Ensure sshd PermitRootLogin is disabled
+    _ensure_sshd_setting("PermitRootLogin", "no", verify_only, REPORT, log, section)
+
+    # 5.1.7 Ensure sshd AllowGroups wheel is set
+    _ensure_sshd_setting("AllowGroups", "wheel", verify_only, REPORT, log, section)
+
+    # 5.1.1 Ensure permissions on /etc/ssh/sshd_config are 600
     _run_check_fix(
         section,
-        "Ensure address space layout randomization (ASLR) is enabled",
-        "sysctl kernel.randomize_va_space | grep -q '= 2'",
-        "sysctl -w kernel.randomize_va_space=2",
+        "Ensure permissions on /etc/ssh/sshd_config are 600",
+        "stat -c '%a' /etc/ssh/sshd_config | grep -q '^600$'",
+        "chmod 600 /etc/ssh/sshd_config",
         verify_only, REPORT, log
     )
 
-    # 1.5.2 Ensure ptrace_scope is restricted
+    # 5.1.2 Ensure permissions on SSH private host key files are 600
     _run_check_fix(
         section,
-        "Ensure ptrace_scope is restricted",
-        "sysctl kernel.yama.ptrace_scope | grep -q '= 1'",
+        "Ensure permissions on SSH private host keys are 600",
+        "find /etc/ssh -type f -name 'ssh_host_*_key' -exec stat -c '%a' {} \\; | grep -q '^600$'",
+        "find /etc/ssh -type f -name 'ssh_host_*_key' -exec chmod 600 {} \\;",
+        verify_only, REPORT, log
+    )
+
+    # 5.1.6 Ensure sshd MACs are configured (disable weak MACs)
+    # Example of strong-only MACs
+    strong_macs = "hmac-sha2-512,hmac-sha2-256"
+    _run_check_fix(
+        section,
+        "Ensure sshd MACs are configured to strong algorithms",
+        f"grep -E '^MACs\\s+{strong_macs}' {SSHD_CONFIG}",
         (
-            "mkdir -p /etc/sysctl.d && "
-            "sysctl -w kernel.yama.ptrace_scope=1 && "
-            "grep -Eq '^kernel.yama.ptrace_scope' " + SYSCTL_CONF + " && "
-            "sed -i 's/^kernel.yama.ptrace_scope.*/kernel.yama.ptrace_scope = 1/' " + SYSCTL_CONF + " || "
-            "echo 'kernel.yama.ptrace_scope = 1' >> " + SYSCTL_CONF
+            f"grep -Eq '^#?MACs' {SSHD_CONFIG} "
+            f"&& sed -i.bak -E 's|^#?MACs.*|MACs {strong_macs}|' {SSHD_CONFIG} "
+            f"|| echo 'MACs {strong_macs}' >> {SSHD_CONFIG} && systemctl restart sshd"
         ),
         verify_only, REPORT, log
     )
 
-    # 1.5.3 Ensure core dump backtraces are disabled
+    # 5.1.9 Ensure sshd ClientAliveInterval is 300 and ClientAliveCountMax is 0
     _run_check_fix(
         section,
-        "Ensure core dump backtraces are disabled",
-        "sysctl kernel.core_pattern | grep -q '^\\|/bin/false'",
+        "Ensure sshd ClientAliveInterval is 300",
+        "grep -E '^ClientAliveInterval\\s+300' /etc/ssh/sshd_config",
         (
-            "mkdir -p /etc/sysctl.d && "
-            "sysctl -w kernel.core_pattern='|/bin/false' && "
-            "grep -Eq '^kernel.core_pattern' " + SYSCTL_CONF + " && "
-            "sed -i 's|^kernel.core_pattern.*|kernel.core_pattern = |/bin/false|' " + SYSCTL_CONF + " || "
-            "echo 'kernel.core_pattern = |/bin/false' >> " + SYSCTL_CONF
+            "grep -Eq '^#?ClientAliveInterval' /etc/ssh/sshd_config "
+            "&& sed -i.bak -E 's|^#?ClientAliveInterval.*|ClientAliveInterval 300|' /etc/ssh/sshd_config "
+            "|| echo 'ClientAliveInterval 300' >> /etc/ssh/sshd_config && systemctl restart sshd"
+        ),
+        verify_only, REPORT, log
+    )
+    _run_check_fix(
+        section,
+        "Ensure sshd ClientAliveCountMax is 0",
+        "grep -E '^ClientAliveCountMax\\s+0' /etc/ssh/sshd_config",
+        (
+            "grep -Eq '^#?ClientAliveCountMax' /etc/ssh/sshd_config "
+            "&& sed -i.bak -E 's|^#?ClientAliveCountMax.*|ClientAliveCountMax 0|' /etc/ssh/sshd_config "
+            "|| echo 'ClientAliveCountMax 0' >> /etc/ssh/sshd_config && systemctl restart sshd"
         ),
         verify_only, REPORT, log
     )
 
-    # 1.5.4 Ensure core dump storage is disabled
+    # 5.1.17 Ensure sshd MaxStartups is configured (e.g., 10:30:60)
     _run_check_fix(
         section,
-        "Ensure core dump storage is disabled",
-        "sysctl fs.suid_dumpable | grep -q '= 0'",
+        "Ensure sshd MaxStartups is set to 10:30:60",
+        "grep -E '^MaxStartups\\s+10:30:60' /etc/ssh/sshd_config",
         (
-            "mkdir -p /etc/sysctl.d && "
-            "sysctl -w fs.suid_dumpable=0 && "
-            "grep -Eq '^fs.suid_dumpable' " + SYSCTL_CONF + " && "
-            "sed -i 's/^fs.suid_dumpable.*/fs.suid_dumpable = 0/' " + SYSCTL_CONF + " || "
-            "echo 'fs.suid_dumpable = 0' >> " + SYSCTL_CONF
+            "grep -Eq '^#?MaxStartups' /etc/ssh/sshd_config "
+            "&& sed -i.bak -E 's|^#?MaxStartups.*|MaxStartups 10:30:60|' /etc/ssh/sshd_config "
+            "|| echo 'MaxStartups 10:30:60' >> /etc/ssh/sshd_config && systemctl restart sshd"
         ),
         verify_only, REPORT, log
     )
 
-    # --- SSH Server Configuration ---
-    # Permit root login via key only
+    # 5.2.2 Ensure sudo commands use pty
     _run_check_fix(
         section,
-        "Ensure SSH PermitRootLogin is 'without-password'",
-        "grep -E '^\\s*PermitRootLogin\\s+without-password' /etc/ssh/sshd_config",
-        (
-            "sed -i.bak -E 's/^\\s*PermitRootLogin.*/PermitRootLogin without-password/' /etc/ssh/sshd_config && "
-            "systemctl restart sshd"
-        ),
+        "Ensure sudo commands use pty",
+        "grep -E '^Defaults\\s+use_pty' /etc/sudoers",
+        "echo 'Defaults use_pty' >> /etc/sudoers",
         verify_only, REPORT, log
     )
 
-    # Allow only wheel group
+    # 5.2.7 Ensure access to the su command is restricted
+    #  - create wheel group if not exists, add current user, update /etc/pam.d/su
     _run_check_fix(
         section,
-        "Ensure SSH AllowGroups includes 'wheel'",
-        "grep -E '^\\s*AllowGroups.*wheel' /etc/ssh/sshd_config",
+        "Ensure access to su is restricted to wheel group",
+        "grep -E '^auth\\s+required\\s+pam_wheel.so use_uid' /etc/pam.d/su",
         (
-            "if grep -q '^AllowGroups' /etc/ssh/sshd_config; then "
-            "sed -i.bak -E 's/^AllowGroups.*/AllowGroups wheel/' /etc/ssh/sshd_config; "
-            "else echo 'AllowGroups wheel' >> /etc/ssh/sshd_config; fi && "
-            "systemctl restart sshd"
+            "groupadd -f wheel && "
+            "user=$(whoami) && usermod -aG wheel $user && "
+            "echo 'auth required pam_wheel.so use_uid' >> /etc/pam.d/su"
         ),
         verify_only, REPORT, log
     )

@@ -1,8 +1,6 @@
 # cis_modules/shadow.py
 
 from cis_modules import _run_check_fix
-import pwd
-from pathlib import Path
 
 def run_section(verify_only, REPORT, log):
     section = "5.4 User Accounts and Environment"
@@ -34,32 +32,25 @@ def run_section(verify_only, REPORT, log):
         verify_only, REPORT, log
     )
 
-    # 5.4.2.5 Ensure root path integrity
-    root_profile = Path("/root/.bash_profile")
-    if not (root_profile.exists() and "export PATH=" in root_profile.read_text()):
-        _run_check_fix(
-            section,
-            "Ensure root PATH integrity",
-            f"grep -E '^export PATH=.*(/s?bin)' {root_profile}",
-            (
-                "echo 'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' "
-                ">> /root/.bash_profile"
-            ),
-            verify_only, REPORT, log
-        )
-    else:
-        log(f"[✔] {section} - root PATH already configured")
-
-    # 5.4.2.7 Ensure system accounts do not have a valid login shell (exclude root)
-    # Change filter from '$3 < 1000' to '$3 > 0 && $3 < 1000' so UID 0 (root) is skipped.
+    # 5.4.2.5 Ensure root PATH integrity
     _run_check_fix(
         section,
-        "Ensure system accounts shell is set to /sbin/nologin (excluding root)",
-        "awk -F: '$3 > 0 && $3 < 1000 {print $1}' /etc/passwd | "
-        "xargs -I {} grep -E '^{}:.*:/sbin/nologin$' /etc/passwd",
+        "Ensure root PATH integrity",
+        "grep -E '^PATH=.+(/usr/local/sbin|/usr/sbin|/sbin)' /root/.bash_profile",
         (
-            "awk -F: '$3 > 0 && $3 < 1000 {print $1}' /etc/passwd | "
-            "xargs -r -n1 usermod -s /sbin/nologin"
+            "echo 'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' "
+            ">> /root/.bash_profile"
+        ),
+        verify_only, REPORT, log
+    )
+
+    # 5.4.2.7 Ensure system accounts do not have a valid login shell
+    _run_check_fix(
+        section,
+        "Ensure system accounts shell is set to /sbin/nologin",
+        "awk -F: '$3 < 1000 {print $1}' /etc/passwd | xargs -I {} grep -E '^{}:.*:/sbin/nologin$' /etc/passwd",
+        (
+            "awk -F: '$3 < 1000 {print $1}' /etc/passwd | xargs -r -n1 usermod -s /sbin/nologin"
         ),
         verify_only, REPORT, log
     )

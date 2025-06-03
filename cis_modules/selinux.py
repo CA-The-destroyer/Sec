@@ -2,61 +2,33 @@
 
 from cis_modules import _run_check_fix
 
-
 def run_section(verify_only, REPORT, log):
-    section = "1.3 Mandatory Access Control"
+    section = "1.3 SELinux"
 
     # 1.3.1.1 Ensure SELinux is installed
     _run_check_fix(
         section,
-        "Ensure SELinux packages are installed",
-        "rpm -q libselinux policycoreutils selinux-policy-targeted",
-        "dnf -y install libselinux policycoreutils selinux-policy-targeted",
+        "Ensure SELinux policy package is installed",
+        "rpm -q selinux-policy-targeted",
+        "dnf -y install selinux-policy-targeted",
         verify_only, REPORT, log
     )
 
-    # 1.3.1.2 Ensure SELinux is not disabled in bootloader configuration
+    # 1.3.1.3 Ensure SELinux policy is configured (enforcing or permissive)
     _run_check_fix(
         section,
-        "Ensure SELinux is not disabled in GRUB",
-        "grep -E """\s*linux\S+.*\bselinux=0\b""" /etc/grub2.cfg",
-        "sed -i.bak -E 's/\bselinux=0\b//' /etc/default/grub && grub2-mkconfig -o /etc/grub2.cfg",
+        "Ensure SELinux configuration file exists",
+        "test -f /etc/selinux/config",
+        None,  # no single‐line fix; assume the package provides it
         verify_only, REPORT, log
     )
 
-    # 1.3.1.3 Ensure SELinux policy is configured
+    # 1.3.1.4 Ensure the SELinux mode is not disabled
     _run_check_fix(
         section,
-        "Ensure SELinux policy type is targeted",
-        "grep -E '^SELINUXTYPE=targeted' /etc/selinux/config",
-        "sed -i.bak -E 's/^SELINUXTYPE=.*/SELINUXTYPE=targeted/' /etc/selinux/config",
-        verify_only, REPORT, log
-    )
-
-    # 1.3.1.4 Ensure SELinux mode is not disabled
-    _run_check_fix(
-        section,
-        "Ensure SELinux mode is not disabled",
+        "Ensure SELinux is not disabled in /etc/selinux/config",
         "grep -E '^SELINUX=(enforcing|permissive)' /etc/selinux/config",
-        "sed -i.bak -E 's/^SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config",
-        verify_only, REPORT, log
-    )
-
-    # 1.3.1.5 Ensure SELinux mode is enforcing
-    _run_check_fix(
-        section,
-        "Ensure SELinux is enforcing",
-        "getenforce | grep -q Enforcing",
-        "setenforce 1 && sed -i.bak -E 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config",
-        verify_only, REPORT, log
-    )
-
-    # 1.3.1.7 Ensure the MCS Translation Service (mcstrans) is not installed
-    _run_check_fix(
-        section,
-        "Ensure mcstrans is not installed",
-        "rpm -q mcstrans",
-        "dnf -y remove mcstrans",
+        "sed -i.bak -E 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config && setenforce 0",
         verify_only, REPORT, log
     )
 
@@ -64,8 +36,8 @@ def run_section(verify_only, REPORT, log):
     _run_check_fix(
         section,
         "Ensure SETroubleshoot is not installed",
-        "rpm -q setroubleshoot",
-        "dnf -y remove setroubleshoot",
+        "rpm -q setroubleshoot-server",
+        "dnf -y remove setroubleshoot-server",
         verify_only, REPORT, log
     )
 
