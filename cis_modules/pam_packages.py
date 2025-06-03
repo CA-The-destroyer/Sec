@@ -2,7 +2,6 @@
 
 from cis_modules import _run_check_fix
 
-
 def run_section(verify_only, REPORT, log):
     section = "5.3 Configure PAM Software Packages"
 

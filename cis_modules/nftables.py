@@ -2,7 +2,6 @@
 
 from cis_modules import _run_check_fix
 
-
 def run_section(verify_only, REPORT, log):
     section = "4.3 Configure NFTables"
 
@@ -20,7 +19,7 @@ def run_section(verify_only, REPORT, log):
         verify_only, REPORT, log
     )
 
-    # 4.3.2 Ensure nftables established connections are configured
+    # 4.3.2 Ensure nftables established connections are accepted
     _run_check_fix(
         section,
         "Ensure nftables established connections are accepted",
@@ -41,7 +40,7 @@ def run_section(verify_only, REPORT, log):
         verify_only, REPORT, log
     )
 
-    # 4.3.4 Ensure nftables loopback traffic is configured
+    # 4.3.4 Ensure nftables loopback traffic is accepted
     _run_check_fix(
         section,
         "Ensure nftables loopback traffic is accepted",

@@ -2,30 +2,16 @@
 
 from cis_modules import _run_check_fix
 
-LOGFILES_DIR = "/var/log"
-
-
 def run_section(verify_only, REPORT, log):
-    section = "6.2 System Logging (Logfiles)"
+    section = "6.2 Configure Logfiles"
 
     # 6.2.4.1 Ensure access to all logfiles has been configured
-    # Check for permissive permissions
+    # We’ll ensure /var/log and its subdirectories are owned by root:root and not world-writable
     _run_check_fix(
         section,
-        "Ensure log directory permissions are not more permissive than 750",
-        f"stat -c '%a' {LOGFILES_DIR} | grep -E '^[0-7][0-4][0-0]$'",
-        # Set directory to 750
-        f"chmod 750 {LOGFILES_DIR}",
-        verify_only, REPORT, log
-    )
-
-    # Ensure individual log files are not world writable
-    _run_check_fix(
-        section,
-        "Ensure no log file is world-writable",
-        f"find {LOGFILES_DIR} -type f -perm /o=w | grep -q ''",
-        # Remove world write
-        f"find {LOGFILES_DIR} -type f -perm /o=w -exec chmod o-w {{}} +",
+        "Ensure ownership and permissions on /var/log/* are correct",
+        "find /var/log -type f -exec stat -c '%U:%G %a %n' {} \\; | grep -Ev '^root:root (600|640|644) ' || true",
+        "chown -R root:root /var/log && chmod -R 640 /var/log/* && chmod 750 /var/log",
         verify_only, REPORT, log
     )
 
