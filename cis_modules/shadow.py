@@ -36,21 +36,23 @@ def run_section(verify_only, REPORT, log):
     _run_check_fix(
         section,
         "Ensure root PATH integrity",
-        "grep -E '^PATH=.+(/usr/local/sbin|/usr/sbin|/sbin)' /root/.bash_profile",
-        (
-            "echo 'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' "
-            ">> /root/.bash_profile"
-        ),
+        "grep -E '^PATH=.+/s?bin' /root/.bash_profile",
+        "echo 'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' >> /root/.bash_profile",
         verify_only, REPORT, log
     )
 
     # 5.4.2.7 Ensure system accounts do not have a valid login shell
+    #    (Exclude root explicitly so we do not lock out root)
+    #    We target every user with UID < 1000 except “root”
     _run_check_fix(
         section,
-        "Ensure system accounts shell is set to /sbin/nologin",
-        "awk -F: '$3 < 1000 {print $1}' /etc/passwd | xargs -I {} grep -E '^{}:.*:/sbin/nologin$' /etc/passwd",
+        "Ensure system accounts shell is set to /sbin/nologin (except root)",
+        # Only match UIDs <1000 and username ≠ root
+        "awk -F: '$3 < 1000 && $1 != \"root\" {print $1 \":\" $7}' /etc/passwd | grep -q '/sbin/nologin'",
         (
-            "awk -F: '$3 < 1000 {print $1}' /etc/passwd | xargs -r -n1 usermod -s /sbin/nologin"
+            # For every system user (UID<1000, not root), set shell to /sbin/nologin
+            "awk -F: '$3 < 1000 && $1 != \"root\" {print $1}' /etc/passwd "
+            "| xargs -r -n1 usermod -s /sbin/nologin"
         ),
         verify_only, REPORT, log
     )
