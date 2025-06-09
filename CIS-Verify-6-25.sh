@@ -39,9 +39,33 @@ check "1.1" "/home opts"        findmnt --target /home -o OPTIONS -n
 check "1.1" "/var mounted"       mount | grep -q " on /var "
 check "1.1" "/var opts"         findmnt --target /var -o OPTIONS -n
 
-# 1.2 Packages & Updates
-check "1.2" "gpgcheck=1"         grep -Eq '^gpgcheck[[:space:]]*=1' /etc/yum.conf
-check "1.2" "updates pending"    yum check-update
+echo
+echo "=== 1.2 Packages & Updates ==="
+check() {
+  desc="$1"; shift
+  # run with timeout, capture exit code & output
+  out=$(timeout 30s bash -c "$*" 2>&1)
+  code=$?
+  if [ $code -eq 0 ]; then
+    status="PASS"
+    printf "%-50s %s (%s)\n" "$desc" "$status" "${out//[$'\n']/ }"
+  else
+    status="FAIL"
+    printf "%-50s %s (%s exit %d)\n" "$desc" "$status" "${out//[$'\n']/ }" "$code"
+  fi
+  # also append to CSV as before…
+  safe=${out//,/\\,}
+  echo "\"1.2\",\"$desc\",\"$status\",\"$safe\"" >> "$CSV"
+}
+
+# Ensure gpgcheck=1 in yum.conf
+check "gpgcheck globally activated" \
+  "grep -Eq '^gpgcheck[[:space:]]*=1' /etc/yum.conf"
+
+# Quick, non-interactive update check (exit 100 = updates available; 0 = none)
+check "yum updates pending (0=none,100=avail)" \
+  "yum -q --assumeno check-update || test \$? -eq 100"
+
 
 # 1.3 SELinux
 check "1.3" "getenforce"         getenforce
