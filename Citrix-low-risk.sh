@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cis_lowrisk_fix.sh — Remediate low-risk CIS findings (extended)
+# cis_lowrisk_fix.sh — Remediate low-risk CIS findings (fixed sed syntax)
 
 set -euo pipefail
 
@@ -18,7 +18,8 @@ echo "2) Enforce core dump pattern…"
 sysctl -w kernel.core_pattern="|/bin/false"
 mkdir -p /etc/sysctl.d
 if grep -q '^kernel.core_pattern' /etc/sysctl.d/99-cis.conf; then
-  sed -i 's|^kernel.core_pattern.*|kernel.core_pattern = |/bin/false|' /etc/sysctl.d/99-cis.conf
+  # use @ as sed delimiter so the |/bin/false text isn't misinterpreted
+  sed -i 's@^kernel.core_pattern.*@kernel.core_pattern = |/bin/false@' /etc/sysctl.d/99-cis.conf
 else
   echo 'kernel.core_pattern = |/bin/false' >> /etc/sysctl.d/99-cis.conf
 fi
@@ -71,22 +72,22 @@ if ! grep -q '^auth\s\+required\s\+pam_wheel.so' /etc/pam.d/su; then
   echo 'auth required pam_wheel.so use_uid' >> /etc/pam.d/su
 fi
 # remove nullok from pam_unix
-sed -i.bak -E 's/(pam_unix\.so[^ ]*) nullok/\1/' /etc/pam.d/system-auth
+sed -i.bak -E 's@(pam_unix\.so[^ ]*) nullok@\1@' /etc/pam.d/system-auth
 # scope pam_faillock to non-root/service accounts
 for f in /etc/pam.d/system-auth /etc/pam.d/password-auth; do
-  sed -i.bak -E "/pam_faillock.so preauth/ i auth [success=1 default=ignore] pam_succeed_if.so uid >= 1000 quiet" $f
-  sed -i.bak -E "/pam_faillock.so authfail/ i auth [success=1 default=ignore] pam_succeed_if.so uid >= 1000 quiet" $f
+  sed -i.bak -E "/pam_faillock\.so preauth/ i auth [success=1 default=ignore] pam_succeed_if.so uid >= 1000 quiet" $f
+  sed -i.bak -E "/pam_faillock\.so authfail/ i auth [success=1 default=ignore] pam_succeed_if.so uid >= 1000 quiet" $f
 done
 
 echo
 echo "8) Inactive password lock – non-root only…"
-# Set system default inactive to 30 for new accounts, but do not change existing root
+# Adjust only the default for new accounts; root account unchanged
 grep -q '^INACTIVE\s\+30' /etc/default/useradd || \
-  sed -i.bak -E 's/^INACTIVE\s+[0-9]+/INACTIVE   30/' /etc/default/useradd
+  sed -i.bak -E 's|^INACTIVE\s+[0-9]+|INACTIVE   30|' /etc/default/useradd
 
 echo
 echo "9) Cleanup orphan files under /tmp and /var/tmp only…"
 find /tmp /var/tmp -xdev \( -nouser -o -nogroup \) -exec rm -rf {} +
 
 echo
-echo "Low-risk remediation complete. Please re-verify with your validation script."
+echo "Low-risk remediation complete.  Please re-verify with your validation script."
