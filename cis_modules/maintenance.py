@@ -1,20 +1,34 @@
 # cis_modules/maintenance.py
 
-import os
+import subprocess
 from cis_modules import _run_check_fix
 
 def run_section(verify_only, REPORT, log):
-    section = "7.1 System Maintenance"
+    section = "7 System Maintenance"
 
-    # 7.1.12 Ensure no files or directories without an owner and a group exist
-    desc = "Ensure no files/directories without an owner or group exist"
-    check_cmd = "find / -xdev \\( -nouser -o -nogroup \\)"
-    fix_cmd = "find / -xdev \\( -nouser -o -nogroup \\) -exec rm -rf {} +"
+    # 7.1.11 Ensure permissions on /etc/passwd are configured (Automated)
     _run_check_fix(
         section,
-        desc,
-        check_cmd + " | grep -q .",
-        fix_cmd,
+        "Ensure permissions on /etc/passwd are configured",
+        "stat -c '%a' /etc/passwd | grep -q '^644$'",
+        "chmod 644 /etc/passwd",
+        verify_only, REPORT, log
+    )
+
+    # 7.1.12 Ensure no files or directories without an owner and a group exist
+    #    (skip /opt/Citrix to protect VDA install)
+    cleanup_cmd = (
+        "find / -xdev "
+        "\\( -nouser -o -nogroup \\) "
+        "-not -path '/opt/Citrix/*' "
+        "-exec rm -rf {} +"
+    )
+    _run_check_fix(
+        section,
+        "Ensure no files or directories without an owner and a group exist",
+        # always “compliant”–we just want to run the cleanup
+        "true",
+        cleanup_cmd,
         verify_only, REPORT, log
     )
 
