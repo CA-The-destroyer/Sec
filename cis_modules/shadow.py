@@ -23,12 +23,23 @@ def run_section(verify_only, REPORT, log):
         verify_only, REPORT, log
     )
 
-    # 5.4.1.5 Ensure inactive password lock is configured (30 days)
+    # 5.4.1.5 Ensure inactive password lock is configured
+    cfg = "/etc/default/useradd"
+    check_cmd = "grep -E '^INACTIVE=30' /etc/default/useradd"
+    fix_cmd = (
+        # If INACTIVE= line exists, change it; otherwise append
+        "if grep -q '^INACTIVE=' " + cfg + "; then "
+        "  sed -i.bak 's|^INACTIVE=.*|INACTIVE=30|' " + cfg + "; "
+        "else "
+        "  echo 'INACTIVE=30' >> " + cfg + "; "
+        "fi"
+    )
+
     _run_check_fix(
         section,
-        "Ensure inactive password lock is set to 30 days",
-        "grep -E '^INACTIVE\\s+30' /etc/default/useradd",
-        "sed -i.bak -E 's/^INACTIVE\\s+[0-9]+/INACTIVE   30/' /etc/default/useradd",
+        "Ensure inactive password lock is configured",
+        check_cmd,
+        fix_cmd,
         verify_only, REPORT, log
     )
 
