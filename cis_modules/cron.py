@@ -128,4 +128,16 @@ def run_section(verify_only, REPORT, log):
         verify_only, REPORT, log
     )
 
+     # 2.4.2.1 Ensure at is restricted to authorized users
+    allow_file = "/etc/at.allow"
+    _run_check_fix(
+        section,
+        "Ensure at is restricted to authorized users",
+        # Passes if the file exists, is owned by root, and only contains “root”
+        f"test -f {allow_file} && grep -q '^root$' {allow_file}",
+        # Create/overwrite the file with only “root”, secure it
+        f"echo root > {allow_file} && chmod 600 {allow_file}",
+        verify_only, REPORT, log
+    )
+
     log(f"[✔] {section} completed")
