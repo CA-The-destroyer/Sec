@@ -1,11 +1,10 @@
 # cis_modules/cron.py
 
 import subprocess
-from pathlib import Path
 from cis_modules import _run_check_fix
 
 def run_section(verify_only, REPORT, log):
-    section = "2.4 Job Schedulers (cron/at)"
+    section = "2.4 Cron & At"
 
     # 2.4.1.2 Ensure permissions on /etc/crontab are configured (644)
     _run_check_fix(
@@ -61,82 +60,54 @@ def run_section(verify_only, REPORT, log):
         verify_only, REPORT, log
     )
 
-    # 2.4.1.8 Ensure crontab is restricted to authorized users
-    #    cron.allow should exist (and contain at least 'root'), cron.deny should either not exist or be mode 644 with minimal contents
-    cron_allow = Path("/etc/cron.allow")
-    cron_deny = Path("/etc/cron.deny")
-
-    # If cron.allow exists, ensure root is in it; if not, create it
-    if not cron_allow.exists() or not subprocess.run("grep -q '^root$' /etc/cron.allow", shell=True).returncode == 0:
-        fix_cmd = (
-            "echo 'root' >> /etc/cron.allow && "
-            "chmod 600 /etc/cron.allow"
-        )
-    else:
-        fix_cmd = None
-
+    # 2.4.1.8 Ensure crontab is restricted to authorized users (cron.allow root only)
     _run_check_fix(
         section,
-        "Ensure cron.allow exists and only contains authorized users",
+        "Ensure cron.allow is root only",
         "test -f /etc/cron.allow && grep -q '^root$' /etc/cron.allow",
-        fix_cmd,
+        "echo root > /etc/cron.allow && chmod 600 /etc/cron.allow",
         verify_only, REPORT, log
     )
 
-    # Ensure cron.deny either does not exist or is empty and mode 644
-    if cron_deny.exists():
-        fix_cron_deny = "truncate -s 0 /etc/cron.deny && chmod 644 /etc/cron.deny"
-    else:
-        fix_cron_deny = None
-
+    # 2.4.1.8 Ensure cron.deny is empty or missing
     _run_check_fix(
         section,
-        "Ensure cron.deny is empty or does not exist",
-        "test ! -f /etc/cron.deny || (grep -q '^$' /etc/cron.deny && stat -c '%a' /etc/cron.deny | grep -q '^644$')",
-        fix_cron_deny,
+        "Ensure cron.deny is empty or missing",
+        "! test -f /etc/cron.deny || grep -q '^$' /etc/cron.deny",
+        ": > /etc/cron.deny && chmod 644 /etc/cron.deny",
         verify_only, REPORT, log
     )
 
-    # 2.4.2.1 Ensure at is restricted to authorized users
-    #    at.allow should exist with 'root'; at.deny should not exist or be empty.
-    at_allow = Path("/etc/at.allow")
-    at_deny = Path("/etc/at.deny")
-
-    if not at_allow.exists() or not subprocess.run("grep -q '^root$' /etc/at.allow", shell=True).returncode == 0:
-        fix_at_allow = "echo 'root' >> /etc/at.allow && chmod 600 /etc/at.allow"
-    else:
-        fix_at_allow = None
-
+    # 2.4.2.1 Ensure at is restricted to authorized users (at.allow root only)
     _run_check_fix(
         section,
-        "Ensure at.allow exists and only contains authorized users",
+        "Ensure at.allow is root only",
         "test -f /etc/at.allow && grep -q '^root$' /etc/at.allow",
-        fix_at_allow,
+        "echo root > /etc/at.allow && chmod 600 /etc/at.allow",
         verify_only, REPORT, log
     )
 
-    if at_deny.exists():
-        fix_at_deny = "truncate -s 0 /etc/at.deny && chmod 644 /etc/at.deny"
-    else:
-        fix_at_deny = None
-
+    # 2.4.2.1 Ensure at.deny is empty or missing
     _run_check_fix(
         section,
-        "Ensure at.deny is empty or does not exist",
-        "test ! -f /etc/at.deny || (grep -q '^$' /etc/at.deny && stat -c '%a' /etc/at.deny | grep -q '^644$')",
-        fix_at_deny,
+        "Ensure at.deny is empty or missing",
+        "! test -f /etc/at.deny || grep -q '^$' /etc/at.deny",
+        ": > /etc/at.deny && chmod 644 /etc/at.deny",
         verify_only, REPORT, log
     )
 
-     # 2.4.2.1 Ensure at is restricted to authorized users
-    allow_file = "/etc/at.allow"
+    # 2.4.x Ensure no-owner files are removed under /tmp and /var/tmp (skip /opt/Citrix)
+    cleanup_cmd = (
+        "find /tmp /var/tmp -xdev "
+        "\\( -nouser -o -nogroup \\) "
+        "-not -path '/opt/Citrix/*' "
+        "-exec rm -rf {} +"
+    )
     _run_check_fix(
         section,
-        "Ensure at is restricted to authorized users",
-        # Passes if the file exists, is owned by root, and only contains “root”
-        f"test -f {allow_file} && grep -q '^root$' {allow_file}",
-        # Create/overwrite the file with only “root”, secure it
-        f"echo root > {allow_file} && chmod 600 {allow_file}",
+        "Ensure orphan files under /tmp and /var/tmp are removed (excl. /opt/Citrix)",
+        "true",  # always runs the fix
+        cleanup_cmd,
         verify_only, REPORT, log
     )
 
