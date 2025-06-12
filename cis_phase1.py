@@ -81,6 +81,8 @@ def main():
         "cis_modules.gdm",
         "cis_modules.chrony",
         "cis_modules.network",
+        "cis_modules.services",      # ← newly added
+        "cis_modules.cron_at",       # ← newly added
         "cis_modules.firewall",
         "cis_modules.nftables",
         "cis_modules.sudo",
