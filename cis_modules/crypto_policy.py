@@ -65,16 +65,16 @@ def run_section(verify_only, REPORT, log):
         verify_only, REPORT, log
     )
 
-    # 1.6.7 Ensure system crypto policy disables EtM for SSH
+   # 1.6.7 Ensure system-wide crypto policy disables EtM for SSH
     _run_check_fix(
         section,
-        "Ensure system crypto policy disables EtM for SSH",
-        "grep -q 'etm' /etc/crypto-policies/back-ends/opensshserver.config || true",
-        (
-            "sed -i.bak -E '/^MACs / s/$/,@openssh.com/' "
-            "/etc/crypto-policies/back-ends/opensshserver.config && update-crypto-policies --reload"
-        ),
+        "Ensure system wide crypto policy disables EtM for SSH",
+        # Check that EtM MACs are *not* present in the sshd backend policy
+        "grep -Eq '^Ciphers|^MACs' /etc/crypto-policies/back-ends/opensshserver.config | grep -q etm@",
+        # Remove any EtM entries and reload the policy
+        "sed -i.bak '/etm@/d' /etc/crypto-policies/back-ends/opensshserver.config && update-crypto-policies --fallback-to-default",
         verify_only, REPORT, log
     )
+
 
     log(f"[✔] {section} completed")
