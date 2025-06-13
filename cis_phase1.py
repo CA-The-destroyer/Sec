@@ -93,7 +93,7 @@ def main():
         "cis_modules.rsyslog",
         "cis_modules.logfiles",
         "cis_modules.maintenance",
-        "cis_lowrisk_fix",
+        "cis_modules.cis_lowrisk_fix",
     ]
 
     selected_modules = parse_selection(modules)
