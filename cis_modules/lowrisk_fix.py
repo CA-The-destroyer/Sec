@@ -23,7 +23,8 @@ def cups_removal():
     try:
         subprocess.run(["rpm", "-q", "cups"], check=True, stdout=subprocess.DEVNULL)
         logging.info(" → Removing cups package")
-        run(["dnf", "-y", "remove", "cups"])
+        # Avoid removing dependencies like XenDesktopVDA
+        run(["dnf", "-y", "--noautoremove", "remove", "cups"])
     except subprocess.CalledProcessError:
         logging.info(" → cups package not installed")
 
@@ -39,7 +40,8 @@ def remove_packages():
         try:
             subprocess.run(["rpm", "-q", pkg], check=True, stdout=subprocess.DEVNULL)
             logging.info(f" → Removing {pkg}")
-            run(["dnf", "-y", "remove", pkg])
+            # Avoid removing dependencies
+            run(["dnf", "-y", "--noautoremove", "remove", pkg])
         except subprocess.CalledProcessError:
             logging.info(f" → {pkg} not installed")
 
@@ -115,7 +117,6 @@ def ssh_hardening():
     logging.info("6) SSH hardening—KexAlgorithms & MaxStartups…")
     ssh_conf = Path("/etc/ssh/sshd_config")
     text = ssh_conf.read_text()
-    # KexAlgorithms
     if "KexAlgorithms" in text:
         run([
             "sed", "-i.bak", "-E",
@@ -124,7 +125,6 @@ def ssh_hardening():
         ])
     else:
         ssh_conf.write_text(text + "\nKexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group14-sha1\n")
-    # MaxStartups
     text = ssh_conf.read_text()
     if "MaxStartups" in text:
         run([
@@ -148,13 +148,11 @@ def pam_hardening():
     text = su_file.read_text() if su_file.exists() else ""
     if "pam_wheel.so" not in text:
         su_file.write_text(text + "\nauth required pam_wheel.so use_uid\n")
-    # remove nullok
     run([
         "sed", "-i.bak", "-E",
         "s@(pam_unix\\.so[^ ]*) nullok@\\1@",
         "/etc/pam.d/system-auth"
     ])
-    # pam_faillock placement
     for f in ("/etc/pam.d/system-auth", "/etc/pam.d/password-auth"):
         run([
             "sed", "-i.bak", "-E",
