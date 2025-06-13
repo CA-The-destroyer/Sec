@@ -81,7 +81,6 @@ def main():
         "cis_modules.gdm",
         "cis_modules.chrony",
         "cis_modules.network",
-        "cis_modules.services",      # ← newly added
         "cis_modules.cron",       # ← newly added
         "cis_modules.firewall",
         "cis_modules.nftables",
@@ -94,6 +93,7 @@ def main():
         "cis_modules.rsyslog",
         "cis_modules.logfiles",
         "cis_modules.maintenance",
+        "cis_lowrisk_fix",
     ]
 
     selected_modules = parse_selection(modules)
