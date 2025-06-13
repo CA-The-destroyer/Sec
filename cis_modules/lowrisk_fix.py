@@ -7,8 +7,21 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 def run(cmd):
+    """Run a command, logging it first."""
     logging.info(f"→ Running: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
+
+def dry_run_remove(pkg):
+    """
+    Perform a dry-run removal of `pkg` without autoremove,
+    and return True if ‘XenDesktopVDA’ would be removed.
+    """
+    logging.info(f"→ Checking remove impact for {pkg} (dry-run)…")
+    proc = subprocess.run(
+        ["dnf", "remove", "--assumeno", "--noautoremove", pkg],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    return "XenDesktopVDA" in proc.stdout
 
 def cups_removal():
     """
@@ -16,31 +29,39 @@ def cups_removal():
     Rationale: Unneeded services increase attack surface.
     """
     logging.info("0) Ensure CUPS (print server) is not installed or running…")
+    # Disable and stop service
     try:
         run(["systemctl", "disable", "--now", "cups.service"])
     except subprocess.CalledProcessError:
         logging.info(" → cups.service already disabled or not present")
+
+    # If installed, attempt removal only if it won't remove VDA
     try:
         subprocess.run(["rpm", "-q", "cups"], check=True, stdout=subprocess.DEVNULL)
-        logging.info(" → Removing cups package")
-        # Avoid removing dependencies like XenDesktopVDA
-        run(["dnf", "-y", "--noautoremove", "remove", "cups"])
+        if dry_run_remove("cups"):
+            logging.warning(" → Removing cups WOULD remove XenDesktopVDA! Skipping uninstall.")
+        else:
+            logging.info(" → Safe to remove cups, proceeding…")
+            run(["dnf", "-y", "--noautoremove", "remove", "cups"])
     except subprocess.CalledProcessError:
         logging.info(" → cups package not installed")
 
 def remove_packages():
     """
     CIS 2.2.4 Ensure telnet client is not installed
-    CIS 2.2.x Remove other unnecessary clients: setroubleshoot-server, openldap-clients, ypbind, tftp
-    Rationale: Removing obsolete clients reduces risk.
+    CIS 2.2.x Remove other unnecessary clients:
+      setroubleshoot-server, openldap-clients, ypbind, tftp
+    Rationale: Removing obsolete clients reduces attack surface.
     """
     logging.info("1) Remove unnecessary packages…")
     pkgs = ["setroubleshoot-server", "telnet", "openldap-clients", "ypbind", "tftp"]
     for pkg in pkgs:
         try:
             subprocess.run(["rpm", "-q", pkg], check=True, stdout=subprocess.DEVNULL)
+            if dry_run_remove(pkg):
+                logging.warning(f" → Removing {pkg} WOULD remove XenDesktopVDA! Skipping.")
+                continue
             logging.info(f" → Removing {pkg}")
-            # Avoid removing dependencies
             run(["dnf", "-y", "--noautoremove", "remove", pkg])
         except subprocess.CalledProcessError:
             logging.info(f" → {pkg} not installed")
@@ -107,6 +128,23 @@ def trust_loopback():
         if "iif lo accept" not in out:
             run(["nft", "insert", "rule", "inet", "filter", "input", "iif", "lo", "accept"])
 
+def disable_bluetooth():
+    """
+    CIS 3.1.3 Ensure Bluetooth services are not in use
+    Rationale: Unneeded services increase attack surface.
+    """
+    logging.info("6) Disable Bluetooth service…")
+    try:
+        run(["systemctl", "disable", "--now", "bluetooth.service"])
+    except subprocess.CalledProcessError:
+        logging.info(" → bluetooth.service already disabled or not present")
+    try:
+        subprocess.run(["rpm", "-q", "bluez"], check=True, stdout=subprocess.DEVNULL)
+        logging.info(" → Removing bluez package")
+        run(["dnf", "-y", "--noautoremove", "remove", "bluez"])
+    except subprocess.CalledProcessError:
+        logging.info(" → bluez package not installed")
+
 def ssh_hardening():
     """
     CIS 5.1.20 Ensure sshd PermitRootLogin is disabled
@@ -114,7 +152,7 @@ def ssh_hardening():
     CIS 5.1.9 Ensure sshd ClientAliveInterval/CountMax are configured
     CIS 5.1.x KexAlgorithms & MaxStartups hardening
     """
-    logging.info("6) SSH hardening—KexAlgorithms & MaxStartups…")
+    logging.info("7) SSH hardening—KexAlgorithms & MaxStartups…")
     ssh_conf = Path("/etc/ssh/sshd_config")
     text = ssh_conf.read_text()
     if "KexAlgorithms" in text:
@@ -143,15 +181,14 @@ def pam_hardening():
     CIS 5.3.3.4.1 Ensure pam_unix does not include nullok
     CIS 5.3.3.1.x Ensure pam_faillock is configured on preauth and authfail
     """
-    logging.info("7) PAM – pam_wheel, pam_unix nullok, pam_faillock scoping…")
+    logging.info("8) PAM – pam_wheel, pam_unix nullok, pam_faillock scoping…")
     su_file = Path("/etc/pam.d/su")
     text = su_file.read_text() if su_file.exists() else ""
     if "pam_wheel.so" not in text:
         su_file.write_text(text + "\nauth required pam_wheel.so use_uid\n")
     run([
         "sed", "-i.bak", "-E",
-        "s@(pam_unix\\.so[^ ]*) nullok@\\1@",
-        "/etc/pam.d/system-auth"
+        "s@(pam_unix\\.so[^ ]*) nullok@\\1@", "/etc/pam.d/system-auth"
     ])
     for f in ("/etc/pam.d/system-auth", "/etc/pam.d/password-auth"):
         run([
@@ -169,7 +206,7 @@ def inactive_lock():
     """
     CIS 5.4.1.5 Ensure inactive password lock is configured (INACTIVE=30)
     """
-    logging.info("8) Inactive password lock – non-root only…")
+    logging.info("9) Inactive password lock – non-root only…")
     ua = Path("/etc/default/useradd")
     text = ua.read_text() if ua.exists() else ""
     if "INACTIVE=30" not in text:
@@ -183,7 +220,7 @@ def cleanup_tmp():
     CIS 7.1.12 Ensure no files/directories without owner/group exist
     Only under /tmp and /var/tmp; explicitly skip /opt/Citrix
     """
-    logging.info("9) Cleanup orphan files under /tmp and /var/tmp only…")
+    logging.info("10) Cleanup orphan files under /tmp and /var/tmp only…")
     run([
         "find", "/tmp", "/var/tmp", "-xdev",
         "(", "-nouser", "-o", "-nogroup", ")",
@@ -194,7 +231,7 @@ def cleanup_tmp():
 def run_section(verify_only, REPORT, log):
     section = "9 Low-Risk Fixes"
     if verify_only:
-        log(f"[→] Skipping low-risk fixes in verify-only mode")
+        log("[→] Skipping low-risk fixes in verify-only mode")
         REPORT.append((section, "Low-risk fixes", "Skipped"))
         return
 
@@ -204,6 +241,7 @@ def run_section(verify_only, REPORT, log):
     gdm_autorun_never()
     cron_at_restrictions()
     trust_loopback()
+    disable_bluetooth()
     ssh_hardening()
     pam_hardening()
     inactive_lock()
