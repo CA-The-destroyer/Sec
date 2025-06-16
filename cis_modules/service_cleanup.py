@@ -3,12 +3,6 @@
 import subprocess
 from cis_modules import _run_check_fix
 
-def _package_installed(pkg: str) -> bool:
-    return subprocess.run(
-        ["rpm", "-q", pkg],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-    ).returncode == 0
-
 def run_section(verify_only, REPORT, log):
     section = "2.1–2.2 Service Cleanup"
 
@@ -16,21 +10,21 @@ def run_section(verify_only, REPORT, log):
     _run_check_fix(
         section,
         "Ensure telnet client is not installed",
-        "rpm -q telnet",
-        "dnf remove -y --noautoremove telnet",
+        "! rpm -q telnet*",
+        "dnf remove -y --noautoremove 'telnet*'",
         verify_only, REPORT, log
     )
 
-    # 2.2.x Remove other unnecessary client packages
-    for pkg in ("setroubleshoot-server", "openldap-clients", "ypbind", "tftp"):
-        desc = f"Ensure {pkg} is not installed"
-        check_cmd = f"rpm -q {pkg}"
-        fix_cmd = f"dnf remove -y --noautoremove {pkg}"
+    # 2.2.x Remove other unnecessary client packages with wildcards
+    for pkg in ("setroubleshoot", "openldap-clients", "ypbind", "tftp"):
+        desc = f"Ensure {pkg} client is not installed"
+        check = f"! rpm -q {pkg}*"
+        fix   = f"dnf remove -y --noautoremove '{pkg}*'"
         _run_check_fix(
             section,
             desc,
-            check_cmd,
-            fix_cmd,
+            check,
+            fix,
             verify_only, REPORT, log
         )
 
