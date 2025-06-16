@@ -75,6 +75,7 @@ def main():
         "cis_modules.packages",
         "cis_modules.selinux",
         "cis_modules.bootloader",
+        "cis_modules.process_hardening",
         "cis_modules.auth_and_lockdown",
         "cis_modules.crypto_policy",
         "cis_modules.banners",
@@ -93,7 +94,7 @@ def main():
         "cis_modules.rsyslog",
         "cis_modules.logfiles",
         "cis_modules.maintenance",
-        "cis_modules.cis_lowrisk_fix",
+       
     ]
 
     selected_modules = parse_selection(modules)
