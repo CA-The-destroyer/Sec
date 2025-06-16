@@ -16,7 +16,7 @@ def run_section(verify_only, REPORT, log):
     )
 
     # 2.2.x Remove other unnecessary client packages with wildcards
-    for pkg in ("setroubleshoot", "openldap-clients", "ypbind", "tftp"):
+    for pkg in ("setroubleshoot-server", "openldap-clients", "ypbind", "tftp"):
         desc = f"Ensure {pkg} client is not installed"
         check = f"! rpm -q {pkg}*"
         fix   = f"dnf remove -y --noautoremove '{pkg}*'"
