@@ -94,6 +94,7 @@ def main():
         "cis_modules.rsyslog",
         "cis_modules.logfiles",
         "cis_modules.maintenance",
+        "cis_modules.cron_at",
        
     ]
 
