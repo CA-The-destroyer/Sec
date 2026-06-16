@@ -6,11 +6,11 @@ Creates audit evidence folder structure for controls C001 through C072.
 Creates the Audit_evidence folder in the current working directory where the script is executed from.
 
 .EXAMPLE
-cd C:\temp\ClaimDOC
+cd C:\temp\xxxxxx
 .\Create-AuditEvidenceStructure.ps1
 
 Creates:
-C:\temp\ClaimDOC\Audit_evidence
+C:\temp\xxxxxxx\Audit_evidence
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true)]
